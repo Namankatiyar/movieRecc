@@ -2,6 +2,7 @@ import chromadb
 from pprint import pprint
 import chromadb.utils.embedding_functions as embedding_functions
 from dotenv import load_dotenv
+import uuid 
 
 load_dotenv()
 
