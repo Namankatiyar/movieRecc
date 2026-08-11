@@ -1,67 +1,59 @@
-import chromadb
-from pprint import pprint
-import chromadb.utils.embedding_functions as embedding_functions
 from dotenv import load_dotenv
-import uuid 
+import os
+import vecs
+from langchain_openai import AzureOpenAIEmbeddings
 import sqlite3
-from google import genai
+import uuid
 import time
-from google.genai import types
-
 
 load_dotenv()
-client = genai.Client()
+db_pass = os.getenv("DB_PASSWORD")
+
+DB_CONNECTION = f"postgresql://postgres.yynkzwxttjasrwcjptmg:{db_pass}@aws-0-ap-south-1.pooler.supabase.com:5432/postgres"
 
 
-google_ef = embedding_functions.GoogleGenaiEmbeddingFunction(
-    model_name="gemini-embedding-001",
-    task_type="RETRIEVAL_DOCUMENT"
+
+embedings = AzureOpenAIEmbeddings(
+    model="text-embedding-3-large" 
 )
 
-chroma_client = chromadb.PersistentClient(path="./db")
-collection = chroma_client.get_or_create_collection(name="movies", embedding_function=google_ef)
 
-movieIds = []
-movieData = []
-movieMetadata = []
+with vecs.create_client(DB_CONNECTION) as vx:
+    with sqlite3.connect("/home/naman/Documents/movieRecc/imdb_top_1000.db") as con:
 
-with sqlite3.connect("/home/naman/Documents/movieRecc/imdb_top_1000.db") as con:
-
-    cursor = con.cursor()
-    for i in range(0,1001, 100):
-        cursor.execute("SELECT * from imdb_top_1000 ORDER BY ROWID ASC LIMIT 100 OFFSET ?",(i,))
-        data = cursor.fetchall() 
-        for item in data:
-            poster_link, series_title, r_year, genre, imdb, summary, meta_score, director, star1, star2, star3, star4  = item
-
-            movieIds.append(str(uuid.uuid4()))
-
-            movieData.append(f"{series_title} ({r_year}) is a {genre} film directed by {director}, starring {star1}, {star2}, {star3}, and {star4}. {summary}")
-
-            movieMetadata.append(dict(poster_link=poster_link, series_title=series_title, r_year=r_year, genre=genre, imdb=imdb, meta_score=meta_score, director=director, star1=star1, star2=star2, star3=star3, star4=star4))
-
-        embedding_list = []
-
-        for i in range(0,len(movieData)):
-            embedding_object = client.models.batchEmbedContent(
-                model="gemini-embedding-001",
-                contents=movieData[i],
-                config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
-            )
-            embedding_list.append(embedding_object.embeddings[0].values)
-            
-            print(i)
-
-        print("batch completed")
-
-        
-        collection.add(ids=movieIds, documents=movieData, metadatas=movieMetadata, embeddings=embedding_list)
         movieIds = []
         movieData = []
         movieMetadata = []
 
-con.close()
+        cursor = con.cursor()
+        for i in range(0,1001, 100):
+            cursor.execute("SELECT * from imdb_top_1000 ORDER BY ROWID ASC LIMIT 100 OFFSET ?",(i,))
+            data = cursor.fetchall() 
+            for item in data:
+                poster_link, series_title, r_year, genre, imdb, summary, meta_score, director, star1, star2, star3, star4  = item
 
-# results = collection.query(query_texts=["stuck in a dream"], n_results=10)
+                movieIds.append(str(uuid.uuid4()))
 
-# pprint(results)
+                movieData.append(f"{series_title} ({r_year}) is a {genre} film directed by {director}, starring {star1}, {star2}, {star3}, and {star4}. {summary}")
+
+                movieMetadata.append(dict(poster_link=poster_link, series_title=series_title, r_year=r_year, genre=genre, imdb=imdb, meta_score=meta_score, director=director, star1=star1, star2=star2, star3=star3, star4=star4))
+
+            embedding_listdata = []
+            vector_list = embedings.embed_documents(movieData)
+            
+            #creating upsert record tuples
+            moviedata_list = []
+            for i in range(0, len(movieIds)):
+                moviedata_list.append((movieIds[i], vector_list[i], movieMetadata[i]))
+
+            movies_vectordata = vx.get_or_create_collection(name="movies_vectordata", dimension=3072)
+            movies_vectordata.upsert(
+                moviedata_list
+            )
+            
+            print("sleeping...")
+            time.sleep(30)
+
+            print("proceeding to next")
+
+    con.close()
