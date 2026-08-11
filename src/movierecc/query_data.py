@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 import os
 import vecs
 from langchain_openai import AzureOpenAIEmbeddings
-from pprint import pprint
 
 load_dotenv()
 db_pass = os.getenv("DB_PASSWORD")

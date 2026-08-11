@@ -38,13 +38,12 @@ with vecs.create_client(DB_CONNECTION) as vx:
 
                 movieMetadata.append(dict(poster_link=poster_link, series_title=series_title, r_year=r_year, genre=genre, imdb=imdb, meta_score=meta_score, director=director, star1=star1, star2=star2, star3=star3, star4=star4))
 
-            embedding_listdata = []
             vector_list = embedings.embed_documents(movieData)
             
             #creating upsert record tuples
             moviedata_list = []
-            for i in range(0, len(movieIds)):
-                moviedata_list.append((movieIds[i], vector_list[i], movieMetadata[i]))
+            for j in range(0, len(movieIds)):
+                moviedata_list.append((movieIds[j], vector_list[j], movieMetadata[j]))
 
             movies_vectordata = vx.get_or_create_collection(name="movies_vectordata", dimension=3072)
             movies_vectordata.upsert(
